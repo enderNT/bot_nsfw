@@ -5,6 +5,9 @@ export interface InboundMessage {
   actorId: string;
   channel: string;
   text: string;
+  correlationId?: string;
+  parentRunId?: string;
+  trigger?: string;
   accountId?: string;
   contactName?: string;
   rawPayload: unknown;

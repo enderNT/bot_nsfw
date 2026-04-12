@@ -135,6 +135,28 @@ También proyecta datasets simples en memoria para:
 - `action_reply`
 - `state_summary`
 
+Además, el template separa explícitamente:
+
+- `logs operativos`: lectura humana, terminal resumida y archivo detallado
+- `trazas`: datasets internos y snapshots de depuración
+
+### Logging operacional
+
+El logger operacional sigue dos destinos con objetivos distintos:
+
+- `terminal`: cinco fases (`IN`, `ROUTE`, `FLOW`, `OUT`, `END`) con el mínimo útil por ejecución
+- `archivo`: bloques estructurados (`INPUT`, `CONTEXT`, `ROUTE`, `TOOL`, `MODEL`, `FLOW`, `OUTPUT`, `END`)
+
+Cada ejecución genera:
+
+- `run_id`
+- `correlation_id`
+- `session_id`
+- `started_at`
+- `elapsed_ms`
+
+El archivo se escribe en texto plano, en UTC e ISO 8601, y sanitiza claves sensibles antes de persistir contenido.
+
 ### DSPy Bridge
 
 `dspy_service/` representa un servicio Python separado y opcional.

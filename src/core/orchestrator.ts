@@ -16,11 +16,11 @@ import type {
   StateStore,
   TraceSink
 } from "../domain/ports";
-import { runActionCapability } from "./capabilities/action";
-import { runConversationCapability } from "./capabilities/conversation";
-import { runKnowledgeCapability } from "./capabilities/knowledge";
 import { buildPromptMemorySelection } from "./services/memory-selection";
+import { ExecutionLogger, OperationalLogger } from "./services/operational-logger";
 import { appendTurn, mergeState } from "./utils/state";
+
+const NO_VALUE = "n/a";
 
 interface OrchestratorDependencies {
   settings: AppSettings;
@@ -31,6 +31,7 @@ interface OrchestratorDependencies {
   dspyBridge: DspyBridge;
   traceSink: TraceSink;
   outboundTransport: OutboundTransport;
+  logger: OperationalLogger;
 }
 
 export class TurnOrchestrator {
@@ -38,6 +39,7 @@ export class TurnOrchestrator {
 
   async processTurn(inbound: InboundMessage): Promise<TurnOutcome> {
     const traceId = await this.deps.traceSink.startTurn(inbound);
+    const executionLogger = await this.deps.logger.startRun(inbound);
 
     try {
       await this.deps.traceSink.append(traceId, "ingest", inbound);
@@ -69,11 +71,46 @@ export class TurnOrchestrator {
         rawRecall: memorySelection.rawRecall,
         promptDigest: memorySelection.promptDigest
       });
+      await executionLogger.context({
+        shortTermState: {
+          summary: state.summary,
+          turnCount: state.turnCount,
+          lastCapability: state.lastCapability ?? null,
+          lastIntent: state.lastIntent ?? null,
+          continuitySignals: state.continuitySignals
+        },
+        memory: {
+          provider: this.deps.settings.memory.provider,
+          enabled: this.deps.settings.memory.enabled,
+          topK: this.deps.settings.memory.topK,
+          scoreThreshold: this.deps.settings.memory.scoreThreshold,
+          rawRecallCount: memorySelection.rawRecall.length,
+          promptDigest: memorySelection.promptDigest
+        }
+      });
 
-      const routeDecision = await this.decideRoute(inbound, state, memorySelection.promptDigest, traceId);
+      const routeDecision = await this.decideRoute(inbound, state, memorySelection.promptDigest, traceId, executionLogger);
       const knowledge = this.deps.settings.knowledge.enabled && routeDecision.needsKnowledge
         ? await this.deps.knowledgeProvider.retrieve(inbound.text, this.deps.settings.knowledge.topK)
         : [];
+      if (this.deps.settings.knowledge.enabled && routeDecision.needsKnowledge) {
+        await executionLogger.tool("knowledge_provider", {
+          component: this.deps.settings.knowledge.provider,
+          request: {
+            query: inbound.text,
+            topK: this.deps.settings.knowledge.topK
+          },
+          response: {
+            count: knowledge.length,
+            documents: knowledge.map((document) => ({
+              id: document.id,
+              score: document.score,
+              content: document.content
+            }))
+          },
+          status: "ok"
+        });
+      }
 
       const context: ExecutionContext = {
         inbound,
@@ -84,11 +121,22 @@ export class TurnOrchestrator {
         traceId
       };
 
-      const { result, usedDspy } = await this.executeCapability(context);
+      const { result, usedDspy } = await this.executeCapability(context, executionLogger);
       await this.deps.traceSink.append(traceId, "execute_capability", {
         capability: routeDecision.capability,
         result,
         usedDspy
+      });
+      await executionLogger.flow({
+        selectedFlow: routeDecision.intent,
+        capability: routeDecision.capability,
+        result: {
+          responseText: result.responseText,
+          handoffRequired: result.handoffRequired,
+          artifacts: result.artifacts
+        },
+        usedDspy,
+        knowledgeCount: knowledge.length
       });
 
       const updatedState = await this.finalizeState(state, routeDecision, result, inbound.text);
@@ -109,11 +157,29 @@ export class TurnOrchestrator {
       await this.persist(inbound, updatedState, result);
       await this.deps.traceSink.projectReply(traceId, outcome, inbound);
       await this.deps.traceSink.endTurn(traceId, outcome);
-      await this.deps.outboundTransport.emit(outcome, inbound);
+      const outbound = await this.deps.outboundTransport.emit(outcome, inbound);
+      await executionLogger.output({
+        destination: outbound?.destination ?? inbound.channel,
+        request: {
+          channel: inbound.channel,
+          provider: this.deps.settings.channel.provider,
+          replyEnabled: this.deps.settings.channel.replyEnabled
+        },
+        response: outbound?.response ?? {
+          status: outbound?.status ?? "ok"
+        },
+        finalOutput: outcome.responseText
+      });
+      await executionLogger.end({
+        status: "ok",
+        summary: `${routeDecision.capability}:${routeDecision.intent}`,
+        result: outcome.handoffRequired ? "handoff_required" : "completed"
+      });
 
       return outcome;
     } catch (error) {
       await this.deps.traceSink.failTurn(traceId, error);
+      await executionLogger.fail(error);
       throw error;
     }
   }
@@ -122,24 +188,123 @@ export class TurnOrchestrator {
     inbound: InboundMessage,
     state: ShortTermState,
     promptDigest: string,
-    traceId: string
+    traceId: string,
+    executionLogger: ExecutionLogger
   ): Promise<RouteDecision> {
-    const dspyDecision = await this.deps.dspyBridge.predictRouteDecision?.({ inbound, state, promptDigest });
-    const decision = dspyDecision ?? (await this.deps.llmProvider.decideRoute({ inbound, state, promptDigest }));
+    let decision: RouteDecision | null = null;
+    let fallback: string | undefined;
+
+    const routeInput = {
+      inbound: {
+        text: inbound.text,
+        channel: inbound.channel,
+        sessionId: inbound.sessionId
+      },
+      state: {
+        turnCount: state.turnCount,
+        summary: state.summary,
+        lastCapability: state.lastCapability ?? null,
+        lastIntent: state.lastIntent ?? null
+      },
+      promptDigest
+    };
+
+    if (this.deps.settings.dspy.enabled && this.deps.settings.dspy.routeDecisionEnabled) {
+      const startedAt = Date.now();
+      const dspyDecision = await this.deps.dspyBridge.predictRouteDecision?.({ inbound, state, promptDigest });
+      await executionLogger.tool("dspy_route_decision", {
+        component: "dspy_bridge",
+        request: routeInput,
+        response: dspyDecision ?? { status: "no_prediction" },
+        status: dspyDecision ? "ok" : "fallback",
+        latency_ms: Date.now() - startedAt
+      });
+      decision = dspyDecision ?? null;
+      if (!decision) {
+        fallback = "generic_llm_provider";
+      }
+    }
+
+    if (!decision) {
+      const startedAt = Date.now();
+      decision = await this.deps.llmProvider.decideRoute({ inbound, state, promptDigest });
+      await executionLogger.model("route_decision", {
+        logical_task: "route_decision",
+        provider: "generic_llm_provider",
+        request: routeInput,
+        response_raw: decision,
+        parsed_result: decision,
+        mode_used: "heuristic",
+        fallback_applied: fallback ?? NO_VALUE,
+        latency_ms: Date.now() - startedAt
+      });
+    }
+
     await this.deps.traceSink.projectRouteDecision(traceId, decision);
     await this.deps.traceSink.append(traceId, "route", decision);
+    await executionLogger.route({
+      resolver: decision ? (fallback ? "generic_llm_provider" : this.deps.settings.dspy.routeDecisionEnabled && this.deps.settings.dspy.enabled ? "dspy_bridge" : "generic_llm_provider") : "unknown",
+      input: routeInput,
+      decision,
+      fallback
+    });
     return decision;
   }
 
-  private async executeCapability(context: ExecutionContext): Promise<{ result: CapabilityResult; usedDspy: boolean }> {
-    switch (context.routeDecision.capability) {
-      case "knowledge":
-        return runKnowledgeCapability(context, this.deps.llmProvider, this.deps.dspyBridge);
-      case "action":
-        return runActionCapability(context, this.deps.llmProvider, this.deps.dspyBridge);
-      default:
-        return runConversationCapability(context, this.deps.llmProvider, this.deps.dspyBridge);
+  private async executeCapability(
+    context: ExecutionContext,
+    executionLogger: ExecutionLogger
+  ): Promise<{ result: CapabilityResult; usedDspy: boolean }> {
+    const capability = context.routeDecision.capability;
+
+    const dspyEnabled = {
+      conversation: this.deps.settings.dspy.conversationReplyEnabled,
+      knowledge: this.deps.settings.dspy.knowledgeReplyEnabled,
+      action: this.deps.settings.dspy.actionReplyEnabled
+    }[capability] && this.deps.settings.dspy.enabled;
+
+    const capabilityRequest = {
+      task: capability,
+      input: context.inbound.text,
+      stateSummary: context.shortTermState.summary,
+      promptDigest: context.memorySelection.promptDigest,
+      knowledgeCount: context.knowledge.length
+    };
+
+    if (dspyEnabled) {
+      const startedAt = Date.now();
+      const dspyResult = await this.deps.dspyBridge.predictReply?.(capability, context);
+      await executionLogger.tool(`dspy_${capability}`, {
+        component: "dspy_bridge",
+        request: capabilityRequest,
+        response: dspyResult ?? { status: "no_prediction" },
+        status: dspyResult ? "ok" : "fallback",
+        latency_ms: Date.now() - startedAt
+      });
+      if (dspyResult) {
+        return { result: dspyResult, usedDspy: true };
+      }
     }
+
+    const startedAt = Date.now();
+    const llmResult = await this.deps.llmProvider.generateReply(capability, context);
+    await executionLogger.model(capability, {
+      logical_task: `${capability}_reply`,
+      provider: "generic_llm_provider",
+      request: capabilityRequest,
+      response_raw: llmResult.responseText,
+      parsed_result: {
+        responseText: llmResult.responseText,
+        handoffRequired: llmResult.handoffRequired,
+        artifacts: llmResult.artifacts,
+        memoryHints: llmResult.memoryHints
+      },
+      mode_used: "template_generation",
+      fallback_applied: dspyEnabled ? "dspy_to_generic_llm" : NO_VALUE,
+      latency_ms: Date.now() - startedAt
+    });
+
+    return { result: llmResult, usedDspy: false };
   }
 
   private async finalizeState(

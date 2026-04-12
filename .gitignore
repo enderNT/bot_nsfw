@@ -1,7 +1,40 @@
-node_modules
+# OS
 .DS_Store
+Thumbs.db
+
+# Env files
 .env
-dist
-coverage
-__pycache__
-*.pyc
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Node / Bun
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.bun/
+
+# Logs
+*.log
+logs/
+var/log/
+
+# Python
+__pycache__/
+*.py[cod]
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# VS Code local settings
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/*.code-snippets

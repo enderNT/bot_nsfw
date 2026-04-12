@@ -8,6 +8,16 @@ export interface AppSettings {
     locale: string;
     timezone: string;
   };
+  logging: {
+    consoleEnabled: boolean;
+    fileEnabled: boolean;
+    directory: string;
+    fileName: string;
+    instanceId: string;
+    containerName: string;
+    containerId: string;
+    hostName: string;
+  };
   llm: {
     provider: string;
     apiKey?: string;
@@ -93,6 +103,16 @@ export function loadSettings(): AppSettings {
       logLevel: readString("APP_LOG_LEVEL", "INFO"),
       locale: readString("APP_DEFAULT_LOCALE", "es-MX"),
       timezone: readString("APP_DEFAULT_TIMEZONE", "America/Mexico_City")
+    },
+    logging: {
+      consoleEnabled: readBoolean("APP_LOG_TO_CONSOLE", true),
+      fileEnabled: readBoolean("APP_LOG_TO_FILE", true),
+      directory: readString("APP_LOG_DIR", "./var/log/stateful-assistant"),
+      fileName: readString("APP_LOG_FILE", "app.log"),
+      instanceId: readString("APP_INSTANCE_ID", ""),
+      containerName: readString("APP_CONTAINER_NAME", ""),
+      containerId: readString("APP_CONTAINER_ID", ""),
+      hostName: readString("APP_HOST_NAME", readString("HOSTNAME", ""))
     },
     llm: {
       provider: readString("LLM_PROVIDER", "openai_compatible"),

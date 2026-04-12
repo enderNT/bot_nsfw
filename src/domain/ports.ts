@@ -53,7 +53,17 @@ export interface TraceSink {
 }
 
 export interface OutboundTransport {
-  emit(outcome: TurnOutcome, inbound: InboundMessage): Promise<void>;
+  emit(
+    outcome: TurnOutcome,
+    inbound: InboundMessage
+  ): Promise<
+    | void
+    | {
+        status: string;
+        destination?: string;
+        response?: Record<string, unknown>;
+      }
+  >;
 }
 
 export interface StateStore {

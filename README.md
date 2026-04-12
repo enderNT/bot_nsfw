@@ -8,6 +8,7 @@ Boilerplate genérico para un asistente conversacional stateful en `Bun.js` con:
 - estado corto por sesión
 - memoria larga desacoplada detrás de interfaz
 - bridge opcional hacia un servicio Python estilo `DSPy`
+- logging operacional dual (`terminal` resumida + `archivo` detallado)
 - Docker y `docker-compose` para desarrollo local
 
 ## Objetivo
@@ -39,6 +40,7 @@ Documentación ampliada:
 
 - [`docs/architecture.md`](./docs/architecture.md)
 - [`docs/development.md`](./docs/development.md)
+- [`docs/logging.md`](./docs/logging.md)
 
 ## Endpoints
 
@@ -63,6 +65,7 @@ Documentación ampliada:
 La configuración está centralizada en [`.env.example`](./.env.example) y separada por namespaces:
 
 - `APP_*`, `BUN_*`
+- `APP_LOG_*`
 - `LLM_*`
 - `MEMORY_*`
 - `KNOWLEDGE_*`
@@ -81,6 +84,13 @@ Regla de diseño:
 ```bash
 docker compose up --build
 ```
+
+Los logs operativos se publican en dos destinos:
+
+- terminal con una vista resumida por ejecución
+- archivo persistente en `APP_LOG_DIR/APP_LOG_FILE`
+
+Con `docker compose`, el destino de archivo queda montado en `/var/log/stateful-assistant`.
 
 Si tienes `bun` instalado localmente:
 
@@ -110,4 +120,5 @@ Incluye implementaciones base seguras para desarrollo:
 - knowledge provider nulo
 - transporte de salida no-op
 - tracing en memoria
+- logging operacional con sanitización y correlación por ejecución
 - bridge HTTP a DSPy con timeout, retry conservador y apertura temporal de circuito

@@ -9,10 +9,12 @@ import { InMemoryMemoryProvider } from "./core/services/in-memory-memory-provide
 import { InMemoryStateStore } from "./core/services/in-memory-state-store";
 import { InMemoryTraceSink } from "./core/services/in-memory-trace-sink";
 import { NoopKnowledgeProvider } from "./core/services/noop-knowledge-provider";
+import { OperationalLogger } from "./core/services/operational-logger";
 
 export function buildApp() {
   const settings = loadSettings();
   const traceSink = new InMemoryTraceSink();
+  const logger = new OperationalLogger(settings);
   const orchestrator = new TurnOrchestrator({
     settings,
     stateStore: new InMemoryStateStore(),
@@ -21,7 +23,8 @@ export function buildApp() {
     llmProvider: new GenericLlmProvider(),
     dspyBridge: new HttpDspyBridge(settings.dspy),
     traceSink,
-    outboundTransport: new NoopTransport()
+    outboundTransport: new NoopTransport(),
+    logger
   });
 
   return new Elysia()
@@ -35,13 +38,10 @@ export function buildApp() {
       try {
         const inbound = normalizeInboundMessage(body as Record<string, unknown>);
         void orchestrator.processTurn(inbound).catch((error) => {
-          console.error(
-            JSON.stringify({
-              event: "async_turn_failed",
-              sessionId: inbound.sessionId,
-              message: error instanceof Error ? error.message : "unknown_error"
-            })
-          );
+          void logger.logSystemError("async_turn", "http.webhooks.messages", error, {
+            session_id: inbound.sessionId,
+            correlation_id: inbound.correlationId ?? inbound.sessionId
+          });
         });
         set.status = 202;
         return {
@@ -50,6 +50,7 @@ export function buildApp() {
           sessionId: inbound.sessionId
         };
       } catch (error) {
+        await logger.logSystemError("normalize_inbound", "http.webhooks.messages", error);
         set.status = 400;
         return {
           accepted: false,
@@ -67,6 +68,7 @@ export function buildApp() {
           outcome
         };
       } catch (error) {
+        await logger.logSystemError("sync_turn", "http.turns.execute", error);
         set.status = 400;
         return {
           accepted: false,

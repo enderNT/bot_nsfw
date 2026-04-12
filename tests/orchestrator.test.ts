@@ -6,10 +6,21 @@ import { InMemoryMemoryProvider } from "../src/core/services/in-memory-memory-pr
 import { InMemoryStateStore } from "../src/core/services/in-memory-state-store";
 import { InMemoryTraceSink } from "../src/core/services/in-memory-trace-sink";
 import { NoopKnowledgeProvider } from "../src/core/services/noop-knowledge-provider";
+import { OperationalLogger } from "../src/core/services/operational-logger";
 import type { AppSettings } from "../src/config";
 
 const settings: AppSettings = {
   app: { env: "test", name: "test-app", host: "0.0.0.0", port: 3000, logLevel: "INFO", locale: "es-MX", timezone: "America/Mexico_City" },
+  logging: {
+    consoleEnabled: false,
+    fileEnabled: false,
+    directory: "./tmp-test-logs",
+    fileName: "app.log",
+    instanceId: "",
+    containerName: "",
+    containerId: "",
+    hostName: "test-host"
+  },
   llm: { provider: "test", model: "test-model", timeoutMs: 1000 },
   router: { confidenceThreshold: 0.62, knowledgeThreshold: 0.58 },
   prompt: { memoryMaxItems: 3, memoryBudgetChars: 1200, recentTurnsLimit: 4, summarizeOnOverflow: true },
@@ -40,7 +51,8 @@ describe("TurnOrchestrator", () => {
       llmProvider: new GenericLlmProvider(),
       dspyBridge: new HttpDspyBridge(settings.dspy),
       traceSink: new InMemoryTraceSink(),
-      outboundTransport: { emit: async () => undefined }
+      outboundTransport: { emit: async () => undefined },
+      logger: new OperationalLogger(settings)
     });
 
     const firstOutcome = await orchestrator.processTurn({

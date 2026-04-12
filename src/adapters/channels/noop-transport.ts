@@ -2,14 +2,19 @@ import type { InboundMessage, TurnOutcome } from "../../domain/contracts";
 import type { OutboundTransport } from "../../domain/ports";
 
 export class NoopTransport implements OutboundTransport {
-  async emit(outcome: TurnOutcome, inbound: InboundMessage): Promise<void> {
-    console.info(
-      JSON.stringify({
-        event: "outbound_skipped",
-        sessionId: inbound.sessionId,
-        channel: inbound.channel,
+  async emit(outcome: TurnOutcome, inbound: InboundMessage): Promise<{
+    status: string;
+    destination: string;
+    response: Record<string, unknown>;
+  }> {
+    return {
+      status: "skipped",
+      destination: inbound.channel,
+      response: {
+        provider: "noop",
+        delivered: false,
         responseText: outcome.responseText
-      })
-    );
+      }
+    };
   }
 }

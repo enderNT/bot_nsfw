@@ -38,6 +38,18 @@ Levantar stack completo:
 docker compose up --build
 ```
 
+Ver logs operativos en terminal:
+
+```bash
+docker compose logs -f app
+```
+
+Ver el archivo persistido:
+
+```bash
+docker compose exec app sh -lc 'tail -n 200 /var/log/stateful-assistant/app.log'
+```
+
 ## Formas de uso
 
 ### 1. Webhook asíncrono
@@ -127,3 +139,6 @@ Antes de extender o integrar este template:
 3. Verifica `GET /health`.
 4. Prueba `POST /turns/execute`.
 5. Revisa `GET /debug/traces` para confirmar la secuencia del turno.
+6. Confirma que la terminal no muestre dumps internos innecesarios.
+7. Confirma que el archivo incluya `run_id`, `correlation_id` y bloques detallados.
+8. Confirma que no aparezcan secretos o credenciales en claro.

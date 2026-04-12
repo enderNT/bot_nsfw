@@ -5,6 +5,11 @@ interface GenericWebhookPayload {
   actorId?: string;
   channel?: string;
   text?: string;
+  correlationId?: string;
+  correlation_id?: string;
+  parentRunId?: string;
+  parent_run_id?: string;
+  trigger?: string;
   accountId?: string;
   contactName?: string;
   message?: {
@@ -31,6 +36,9 @@ export function normalizeInboundMessage(payload: GenericWebhookPayload): Inbound
     actorId: String(payload.actorId ?? payload.sender?.id ?? "anonymous"),
     channel: String(payload.channel ?? "generic_http"),
     text,
+    correlationId: payload.correlationId ? String(payload.correlationId) : payload.correlation_id ? String(payload.correlation_id) : undefined,
+    parentRunId: payload.parentRunId ? String(payload.parentRunId) : payload.parent_run_id ? String(payload.parent_run_id) : undefined,
+    trigger: payload.trigger ? String(payload.trigger) : "http_message",
     accountId: payload.accountId ? String(payload.accountId) : undefined,
     contactName: payload.contactName ?? payload.sender?.name,
     rawPayload: payload,
