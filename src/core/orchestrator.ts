@@ -17,6 +17,7 @@ import type {
   TraceSink
 } from "../domain/ports";
 import { buildPromptMemorySelection } from "./services/memory-selection";
+import { LangGraphCapabilityGraph } from "./services/langgraph-capability-graph";
 import { ExecutionLogger, OperationalLogger } from "./services/operational-logger";
 import { appendTurn, mergeState } from "./utils/state";
 
@@ -32,6 +33,7 @@ interface OrchestratorDependencies {
   traceSink: TraceSink;
   outboundTransport: OutboundTransport;
   logger: OperationalLogger;
+  langGraph: LangGraphCapabilityGraph;
 }
 
 export class TurnOrchestrator {
@@ -90,38 +92,17 @@ export class TurnOrchestrator {
       });
 
       const routeDecision = await this.decideRoute(inbound, state, memorySelection.promptDigest, traceId, executionLogger);
-      const knowledge = this.deps.settings.knowledge.enabled && routeDecision.needsKnowledge
-        ? await this.deps.knowledgeProvider.retrieve(inbound.text, this.deps.settings.knowledge.topK)
-        : [];
-      if (this.deps.settings.knowledge.enabled && routeDecision.needsKnowledge) {
-        await executionLogger.tool("knowledge_provider", {
-          component: this.deps.settings.knowledge.provider,
-          request: {
-            query: inbound.text,
-            topK: this.deps.settings.knowledge.topK
-          },
-          response: {
-            count: knowledge.length,
-            documents: knowledge.map((document) => ({
-              id: document.id,
-              score: document.score,
-              content: document.content
-            }))
-          },
-          status: "ok"
-        });
-      }
 
       const context: ExecutionContext = {
         inbound,
         shortTermState: state,
         memorySelection,
-        knowledge,
+        knowledge: [],
         routeDecision,
         traceId
       };
 
-      const { result, usedDspy } = await this.executeCapability(context, executionLogger);
+      const { result, usedDspy, knowledge, graphRoute } = await this.executeCapability(context, executionLogger);
       await this.deps.traceSink.append(traceId, "execute_capability", {
         capability: routeDecision.capability,
         result,
@@ -133,7 +114,10 @@ export class TurnOrchestrator {
         result: {
           responseText: result.responseText,
           handoffRequired: result.handoffRequired,
-          artifacts: result.artifacts
+          artifacts: {
+            ...result.artifacts,
+            graphRoute: graphRoute ?? null
+          }
         },
         usedDspy,
         knowledgeCount: knowledge.length
@@ -254,8 +238,54 @@ export class TurnOrchestrator {
   private async executeCapability(
     context: ExecutionContext,
     executionLogger: ExecutionLogger
-  ): Promise<{ result: CapabilityResult; usedDspy: boolean }> {
+  ): Promise<{ result: CapabilityResult; usedDspy: boolean; knowledge: typeof context.knowledge; graphRoute?: string }> {
     const capability = context.routeDecision.capability;
+
+    if (capability === "conversation" || capability === "knowledge") {
+      const startedAt = Date.now();
+      const graphResult = await this.deps.langGraph.invoke(context);
+      await executionLogger.tool("langgraph", {
+        component: "@langchain/langgraph",
+        request: {
+          capability,
+          intent: context.routeDecision.intent,
+          needsKnowledge: context.routeDecision.needsKnowledge
+        },
+        response: {
+          route: graphResult.route,
+          usedDspy: graphResult.usedDspy,
+          knowledgeCount: graphResult.knowledge.length
+        },
+        status: "ok",
+        latency_ms: Date.now() - startedAt
+      });
+
+      if (graphResult.route === "rag" && this.deps.settings.knowledge.enabled) {
+        await executionLogger.tool("knowledge_provider", {
+          component: this.deps.settings.knowledge.provider,
+          request: {
+            query: context.inbound.text,
+            topK: this.deps.settings.knowledge.topK
+          },
+          response: {
+            count: graphResult.knowledge.length,
+            documents: graphResult.knowledge.map((document) => ({
+              id: document.id,
+              score: document.score,
+              content: document.content
+            }))
+          },
+          status: "ok"
+        });
+      }
+
+      return {
+        result: graphResult.result,
+        usedDspy: graphResult.usedDspy,
+        knowledge: graphResult.knowledge,
+        graphRoute: graphResult.route
+      };
+    }
 
     const dspyEnabled = {
       conversation: this.deps.settings.dspy.conversationReplyEnabled,
@@ -282,7 +312,7 @@ export class TurnOrchestrator {
         latency_ms: Date.now() - startedAt
       });
       if (dspyResult) {
-        return { result: dspyResult, usedDspy: true };
+        return { result: dspyResult, usedDspy: true, knowledge: context.knowledge };
       }
     }
 
@@ -304,7 +334,7 @@ export class TurnOrchestrator {
       latency_ms: Date.now() - startedAt
     });
 
-    return { result: llmResult, usedDspy: false };
+    return { result: llmResult, usedDspy: false, knowledge: context.knowledge };
   }
 
   private async finalizeState(

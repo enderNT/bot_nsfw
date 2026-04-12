@@ -2,7 +2,7 @@
 
 ## Alcance actual
 
-La integración actual de `LangGraph` vive en `dspy_service/` y está pensada como una primera capa de orquestación Python conectada al core Bun por HTTP.
+La integración actual de `LangGraph` vive dentro de la aplicación `JS/TS` y está pensada como una primera capa de orquestación local conectada al core del boilerplate.
 
 Por ahora el grafo solo cubre dos rutas:
 
@@ -25,8 +25,8 @@ Para no romper contratos existentes:
 ## Flujo
 
 1. Bun normaliza el inbound.
-2. El `HttpDspyBridge` envía payload al servicio Python si está habilitado.
-3. `LangGraph` clasifica la ruta principal.
+2. El orquestador decide la capability principal.
+3. Si la capability es `conversation` o `knowledge`, entra al subgrafo de `LangGraph`.
 4. El nodo correspondiente produce la respuesta.
 5. Bun conserva la responsabilidad de persistencia, memoria, logging y emisión.
 
@@ -40,6 +40,15 @@ Se usa para continuidad conversacional y puede aprovechar `promptDigest` como me
 
 Se usa para consultas que requieren contexto recuperado. Consume la lista `knowledge` que ya arma el core del boilerplate.
 
+## Integración con DSPy
+
+`DSPy` sigue viviendo exclusivamente en Python.
+
+Los nodos del grafo pueden:
+
+- intentar `DSPy` primero si está habilitado
+- hacer fallback al provider TS del template si `DSPy` no responde o está deshabilitado
+
 ## Lo que todavía no cubre
 
 Esta primera iteración no mueve todo el sistema a LangGraph. Aún quedan fuera:
@@ -48,10 +57,10 @@ Esta primera iteración no mueve todo el sistema a LangGraph. Aún quedan fuera:
 - tools reales dentro del grafo
 - persistencia de estado del grafo
 - nodos de recuperación reales
-- uso de LLM real dentro del servicio Python
+- routing completo de toda la aplicación dentro del grafo
 
 ## Archivos clave
 
-- `dspy_service/app.py`
-- `dspy_service/langgraph_workflow.py`
+- `src/core/services/langgraph-capability-graph.ts`
+- `src/core/orchestrator.ts`
 - `src/core/services/http-dspy-bridge.ts`

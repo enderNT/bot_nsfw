@@ -5,6 +5,7 @@ import { HttpDspyBridge } from "../src/core/services/http-dspy-bridge";
 import { InMemoryMemoryProvider } from "../src/core/services/in-memory-memory-provider";
 import { InMemoryStateStore } from "../src/core/services/in-memory-state-store";
 import { InMemoryTraceSink } from "../src/core/services/in-memory-trace-sink";
+import { LangGraphCapabilityGraph } from "../src/core/services/langgraph-capability-graph";
 import { NoopKnowledgeProvider } from "../src/core/services/noop-knowledge-provider";
 import { OperationalLogger } from "../src/core/services/operational-logger";
 import type { AppSettings } from "../src/config";
@@ -43,16 +44,25 @@ const settings: AppSettings = {
 
 describe("TurnOrchestrator", () => {
   it("processes a generic conversation turn and persists continuity", async () => {
+    const knowledgeProvider = new NoopKnowledgeProvider();
+    const llmProvider = new GenericLlmProvider();
+    const dspyBridge = new HttpDspyBridge(settings.dspy);
     const orchestrator = new TurnOrchestrator({
       settings,
       stateStore: new InMemoryStateStore(),
       memoryProvider: new InMemoryMemoryProvider(),
-      knowledgeProvider: new NoopKnowledgeProvider(),
-      llmProvider: new GenericLlmProvider(),
-      dspyBridge: new HttpDspyBridge(settings.dspy),
+      knowledgeProvider,
+      llmProvider,
+      dspyBridge,
       traceSink: new InMemoryTraceSink(),
       outboundTransport: { emit: async () => undefined },
-      logger: new OperationalLogger(settings)
+      logger: new OperationalLogger(settings),
+      langGraph: new LangGraphCapabilityGraph({
+        settings,
+        knowledgeProvider,
+        llmProvider,
+        dspyBridge
+      })
     });
 
     const firstOutcome = await orchestrator.processTurn({

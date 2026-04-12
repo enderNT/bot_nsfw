@@ -8,6 +8,7 @@ import { HttpDspyBridge } from "./core/services/http-dspy-bridge";
 import { InMemoryMemoryProvider } from "./core/services/in-memory-memory-provider";
 import { InMemoryStateStore } from "./core/services/in-memory-state-store";
 import { InMemoryTraceSink } from "./core/services/in-memory-trace-sink";
+import { LangGraphCapabilityGraph } from "./core/services/langgraph-capability-graph";
 import { NoopKnowledgeProvider } from "./core/services/noop-knowledge-provider";
 import { OperationalLogger } from "./core/services/operational-logger";
 
@@ -15,16 +16,25 @@ export function buildApp() {
   const settings = loadSettings();
   const traceSink = new InMemoryTraceSink();
   const logger = new OperationalLogger(settings);
+  const knowledgeProvider = new NoopKnowledgeProvider();
+  const llmProvider = new GenericLlmProvider();
+  const dspyBridge = new HttpDspyBridge(settings.dspy);
   const orchestrator = new TurnOrchestrator({
     settings,
     stateStore: new InMemoryStateStore(),
     memoryProvider: new InMemoryMemoryProvider(),
-    knowledgeProvider: new NoopKnowledgeProvider(),
-    llmProvider: new GenericLlmProvider(),
-    dspyBridge: new HttpDspyBridge(settings.dspy),
+    knowledgeProvider,
+    llmProvider,
+    dspyBridge,
     traceSink,
     outboundTransport: new NoopTransport(),
-    logger
+    logger,
+    langGraph: new LangGraphCapabilityGraph({
+      settings,
+      knowledgeProvider,
+      llmProvider,
+      dspyBridge
+    })
   });
 
   return new Elysia()

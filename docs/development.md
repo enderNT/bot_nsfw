@@ -23,7 +23,7 @@ bun test
 Validar sintaxis del servicio Python:
 
 ```bash
-python3 -m py_compile dspy_service/app.py dspy_service/langgraph_workflow.py
+python3 -m py_compile dspy_service/app.py
 ```
 
 Validar tipos:
@@ -83,10 +83,14 @@ curl -X POST http://localhost:3000/webhooks/messages \
 
 Útil para pruebas manuales, integración local y testeo de adapters.
 
-Para probar LangGraph por la vía del bridge Python, activa:
+Para probar el subgrafo LangGraph en la app, envía un turno que el routing resuelva como:
+
+- `conversation`
+- `knowledge`
+
+Si además quieres que los nodos del grafo intenten usar `DSPy` antes del fallback local, activa:
 
 - `DSPY_ENABLED=true`
-- `DSPY_ROUTE_DECISION_ENABLED=true`
 - `DSPY_CONVERSATION_REPLY_ENABLED=true`
 - `DSPY_KNOWLEDGE_REPLY_ENABLED=true`
 
@@ -133,7 +137,7 @@ En un producto real normalmente se reemplaza por una implementación que:
 El bridge ya existe, pero está apagado por defecto. Si lo activas:
 
 - el servicio Python debe responder los endpoints esperados
-- el servicio Python puede resolver `conversation` y `rag` mediante LangGraph
+- el servicio Python sigue siendo exclusivo para `DSPy`
 - conviene monitorear latencia y fallback
 - el sistema debe seguir funcionando si el servicio cae
 

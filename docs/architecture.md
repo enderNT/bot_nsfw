@@ -171,7 +171,7 @@ El bridge Bun:
 
 ### LangGraph
 
-Dentro de `dspy_service/` ahora existe una implementación inicial con `LangGraph`.
+La implementación actual de `LangGraph` vive dentro de la aplicación `JS/TS`, en `src/core/services/langgraph-capability-graph.ts`.
 
 El grafo actual tiene dos rutas:
 
@@ -182,9 +182,10 @@ El grafo actual tiene dos rutas:
 
 En esta etapa:
 
-- LangGraph decide la ruta principal
-- LangGraph genera respuestas para `conversation`
-- LangGraph genera respuestas para `rag`
+- LangGraph organiza la ejecución para `conversation`
+- LangGraph organiza la ejecución para `rag`
+- la ruta `rag` resuelve retrieval desde `KnowledgeProvider`
+- los nodos pueden seguir usando `DSPy` como motor opcional de reply
 - `action` permanece fuera del grafo y conserva fallback controlado
 
 ## Principios de diseño
