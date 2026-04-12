@@ -20,6 +20,12 @@ Ejecutar pruebas:
 bun test
 ```
 
+Validar sintaxis del servicio Python:
+
+```bash
+python3 -m py_compile dspy_service/app.py dspy_service/langgraph_workflow.py
+```
+
 Validar tipos:
 
 ```bash
@@ -77,6 +83,13 @@ curl -X POST http://localhost:3000/webhooks/messages \
 
 Útil para pruebas manuales, integración local y testeo de adapters.
 
+Para probar LangGraph por la vía del bridge Python, activa:
+
+- `DSPY_ENABLED=true`
+- `DSPY_ROUTE_DECISION_ENABLED=true`
+- `DSPY_CONVERSATION_REPLY_ENABLED=true`
+- `DSPY_KNOWLEDGE_REPLY_ENABLED=true`
+
 ## Qué reemplazar en un proyecto real
 
 ### MemoryProvider
@@ -120,6 +133,7 @@ En un producto real normalmente se reemplaza por una implementación que:
 El bridge ya existe, pero está apagado por defecto. Si lo activas:
 
 - el servicio Python debe responder los endpoints esperados
+- el servicio Python puede resolver `conversation` y `rag` mediante LangGraph
 - conviene monitorear latencia y fallback
 - el sistema debe seguir funcionando si el servicio cae
 

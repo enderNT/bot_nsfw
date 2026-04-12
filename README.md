@@ -8,6 +8,7 @@ Boilerplate genérico para un asistente conversacional stateful en `Bun.js` con:
 - estado corto por sesión
 - memoria larga desacoplada detrás de interfaz
 - bridge opcional hacia un servicio Python estilo `DSPy`
+- servicio Python opcional con `LangGraph` para rutas `conversation` y `rag`
 - logging operacional dual (`terminal` resumida + `archivo` detallado)
 - Docker y `docker-compose` para desarrollo local
 
@@ -34,6 +35,7 @@ Piezas principales:
 - `core/orchestrator`: coordina el turno completo.
 - `core/capabilities`: ejecuta `conversation`, `knowledge` o `action`.
 - `core/services`: implementaciones base en memoria, bridge HTTP a DSPy y utilidades.
+- `dspy_service/`: bridge Python que ahora puede resolver rutas con `LangGraph`.
 - `domain/contracts` y `domain/ports`: contratos internos e interfaces desacopladas.
 
 Documentación ampliada:
@@ -92,6 +94,11 @@ Los logs operativos se publican en dos destinos:
 
 Con `docker compose`, el destino de archivo queda montado en `/var/log/stateful-assistant`.
 
+Si activas el bridge Python, la primera implementación de LangGraph cubre:
+
+- `conversation`
+- `rag` (mapeada al capability `knowledge` del core)
+
 Si tienes `bun` instalado localmente:
 
 ```bash
@@ -121,4 +128,4 @@ Incluye implementaciones base seguras para desarrollo:
 - transporte de salida no-op
 - tracing en memoria
 - logging operacional con sanitización y correlación por ejecución
-- bridge HTTP a DSPy con timeout, retry conservador y apertura temporal de circuito
+- bridge HTTP a DSPy/LangGraph con timeout, retry conservador y apertura temporal de circuito

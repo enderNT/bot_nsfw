@@ -169,6 +169,24 @@ El bridge Bun:
 - abre circuito temporalmente si el servicio falla
 - cae al `LlmProvider` sin detener el sistema
 
+### LangGraph
+
+Dentro de `dspy_service/` ahora existe una implementación inicial con `LangGraph`.
+
+El grafo actual tiene dos rutas:
+
+- `conversation`
+- `rag`
+
+`rag` se traduce de vuelta al capability `knowledge` para conservar compatibilidad con el core actual del boilerplate.
+
+En esta etapa:
+
+- LangGraph decide la ruta principal
+- LangGraph genera respuestas para `conversation`
+- LangGraph genera respuestas para `rag`
+- `action` permanece fuera del grafo y conserva fallback controlado
+
 ## Principios de diseño
 
 - El core no conoce detalles de dominio.
