@@ -1,0 +1,129 @@
+# Desarrollo y Extensión
+
+## Requisitos
+
+- `Bun.js`
+- `Docker` y `docker compose` para levantar el stack completo
+- `Python` solo si quieres ejecutar o extender el servicio auxiliar localmente fuera de Docker
+
+## Comandos útiles
+
+Instalar dependencias:
+
+```bash
+bun install
+```
+
+Ejecutar pruebas:
+
+```bash
+bun test
+```
+
+Validar tipos:
+
+```bash
+bun x tsc --noEmit
+```
+
+Levantar app principal:
+
+```bash
+bun run src/index.ts
+```
+
+Levantar stack completo:
+
+```bash
+docker compose up --build
+```
+
+## Formas de uso
+
+### 1. Webhook asíncrono
+
+`POST /webhooks/messages`
+
+Pensado para canales externos que necesitan acuse temprano.
+
+Ejemplo:
+
+```bash
+curl -X POST http://localhost:3000/webhooks/messages \
+  -H 'content-type: application/json' \
+  -d '{
+    "sessionId": "session-1",
+    "actorId": "user-1",
+    "channel": "generic_http",
+    "text": "Hola, quiero probar el template"
+  }'
+```
+
+### 2. Ejecución síncrona
+
+`POST /turns/execute`
+
+Útil para pruebas manuales, integración local y testeo de adapters.
+
+## Qué reemplazar en un proyecto real
+
+### MemoryProvider
+
+Sustituye `InMemoryMemoryProvider` por una implementación real si necesitas:
+
+- persistencia entre reinicios
+- búsqueda semántica
+- políticas de escritura configurables
+- metadata operativa enriquecida
+
+### KnowledgeProvider
+
+Sustituye `NoopKnowledgeProvider` por un provider de retrieval si el producto requiere:
+
+- búsqueda documental
+- RAG
+- catálogos o bases de conocimiento
+
+### LlmProvider
+
+`GenericLlmProvider` es solo una base funcional.
+
+En un producto real normalmente se reemplaza por una implementación que:
+
+- llame a un proveedor LLM
+- use prompts versionados
+- maneje budgets y tool calling
+- incorpore identidad, tono e instrucciones configurables
+
+### OutboundTransport
+
+`NoopTransport` no envía nada fuera del proceso. Un adapter real debería:
+
+- transformar `TurnOutcome` al formato del canal
+- manejar errores y reintentos
+- dejar trazas suficientes
+
+### DSPy Bridge
+
+El bridge ya existe, pero está apagado por defecto. Si lo activas:
+
+- el servicio Python debe responder los endpoints esperados
+- conviene monitorear latencia y fallback
+- el sistema debe seguir funcionando si el servicio cae
+
+## Convenciones de extensión
+
+- Mantén el dominio fuera del core.
+- Prefiere agregar adapters o providers antes que modificar contratos internos.
+- Si agregas una nueva capacidad, primero define su contrato y luego su integración en el orquestador.
+- Si agregas un canal, su trabajo principal debe ser normalizar entrada y traducir salida.
+
+## Validación mínima recomendada
+
+Antes de extender o integrar este template:
+
+1. Ejecuta `bun test`.
+2. Ejecuta `bun x tsc --noEmit`.
+3. Verifica `GET /health`.
+4. Prueba `POST /turns/execute`.
+5. Revisa `GET /debug/traces` para confirmar la secuencia del turno.
