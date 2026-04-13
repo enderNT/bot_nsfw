@@ -14,6 +14,15 @@ Instalar dependencias:
 bun install
 ```
 
+Preparar el entorno virtual del servicio `DSPy`:
+
+```bash
+python3 -m venv dspy_service/.venv
+./dspy_service/.venv/bin/pip install -r dspy_service/requirements.txt
+```
+
+`make dspy` ya usa `dspy_service/.venv/bin/python` por defecto. Si ese entorno no existe, falla temprano con el comando exacto para crearlo.
+
 Ejecutar pruebas:
 
 ```bash
@@ -43,6 +52,19 @@ Levantar solo el servicio local de `DSPy`:
 ```bash
 make dspy
 ```
+
+Levantar la app principal y el servicio `DSPy` al mismo tiempo:
+
+```bash
+bun run dev:app+dspy
+```
+
+Este comando siempre arranca ambos procesos.
+
+- Sirve para desarrollo local cuando quieres tener el bridge Python disponible sin depender de Docker.
+- No cambia el comportamiento funcional del core por sí mismo.
+- La app solo usará el bridge si `DSPY_ENABLED=true`.
+- Si `DSPY_ENABLED=false`, el servicio Python puede estar levantado y aun así el core seguirá usando fallback local.
 
 Exponer la app local con `ngrok`:
 

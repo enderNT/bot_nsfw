@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
+    "dev:app+dspy": "./scripts/run-app-and-dspy.sh",
     "start": "bun src/index.ts",
     "test": "bun test",
     "check": "bun test --preload ./tests/setup.ts",

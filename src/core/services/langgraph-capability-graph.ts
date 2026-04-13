@@ -44,12 +44,14 @@ export class LangGraphCapabilityGraph {
   private readonly graph;
 
   constructor(private readonly deps: LangGraphCapabilityGraphDeps) {
+    const routeNodeName = "route_capability";
+
     this.graph = new StateGraph(GraphState)
-      .addNode("route", async (state) => this.routeNode(state))
+      .addNode(routeNodeName, async (state) => this.routeNode(state))
       .addNode("conversation", async (state) => this.conversationNode(state))
       .addNode("rag", async (state) => this.ragNode(state))
-      .addEdge(START, "route")
-      .addConditionalEdges("route", (state) => state.route, {
+      .addEdge(START, routeNodeName)
+      .addConditionalEdges(routeNodeName, (state) => state.route, {
         conversation: "conversation",
         rag: "rag"
       })

@@ -116,11 +116,26 @@ bun x tsc --noEmit
 bun run src/index.ts
 ```
 
-Para levantar solo el servicio Python de `DSPy` en local:
+Para trabajar con el servicio Python de `DSPy` fuera de Docker:
+
+```bash
+python3 -m venv dspy_service/.venv
+./dspy_service/.venv/bin/pip install -r dspy_service/requirements.txt
+```
+
+Para levantar solo el servicio Python de `DSPy` en local, usando ese entorno virtual:
 
 ```bash
 make dspy
 ```
+
+Para levantar la app principal y el servicio `DSPy` al mismo tiempo:
+
+```bash
+bun run dev:app+dspy
+```
+
+Ese comando siempre arranca ambos procesos. `DSPY_ENABLED` sigue controlando solo si el core usa el bridge HTTP o hace fallback local.
 
 Para publicar tu app local con `ngrok`:
 
