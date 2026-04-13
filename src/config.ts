@@ -46,6 +46,14 @@ export interface AppSettings {
     agentId: string;
     topK: number;
     scoreThreshold: number;
+    infer: boolean;
+    customInstructionsVersion: string;
+    mem0: {
+      apiKey?: string;
+      baseUrl: string;
+      orgId?: string;
+      projectId?: string;
+    };
   };
   knowledge: {
     provider: string;
@@ -98,6 +106,9 @@ function readBoolean(name: string, fallback: boolean): boolean {
 }
 
 export function loadSettings(): AppSettings {
+  const mem0ApiKey = readString("MEM0_API_KEY", "");
+  const mem0BaseUrlFallback = mem0ApiKey ? "https://api.mem0.ai" : "http://127.0.0.1:8000";
+
   return {
     app: {
       env: readString("APP_ENV", "development"),
@@ -148,7 +159,15 @@ export function loadSettings(): AppSettings {
       enabled: readBoolean("MEMORY_ENABLED", true),
       agentId: readString("MEMORY_AGENT_ID", "default-assistant"),
       topK: readNumber("MEMORY_TOP_K", 5),
-      scoreThreshold: readNumber("MEMORY_SCORE_THRESHOLD", 0)
+      scoreThreshold: readNumber("MEMORY_SCORE_THRESHOLD", 0),
+      infer: readBoolean("MEMORY_INFER", true),
+      customInstructionsVersion: readString("MEMORY_CUSTOM_INSTRUCTIONS_VERSION", "v1"),
+      mem0: {
+        apiKey: mem0ApiKey,
+        baseUrl: readString("MEM0_BASE_URL", mem0BaseUrlFallback),
+        orgId: readString("MEM0_ORG_ID", ""),
+        projectId: readString("MEM0_PROJECT_ID", "")
+      }
     },
     knowledge: {
       provider: readString("KNOWLEDGE_PROVIDER", "none"),

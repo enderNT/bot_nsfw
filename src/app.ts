@@ -8,22 +8,22 @@ import {
   normalizeInboundMessage
 } from "./adapters/http/inbound";
 import { TurnOrchestrator } from "./core/orchestrator";
-import { GenericLlmProvider } from "./core/services/generic-llm-provider";
 import { HttpDspyBridge } from "./core/services/http-dspy-bridge";
-import { InMemoryMemoryProvider } from "./core/services/in-memory-memory-provider";
 import { InMemoryStateStore } from "./core/services/in-memory-state-store";
 import { InMemoryTraceSink } from "./core/services/in-memory-trace-sink";
 import { LangGraphCapabilityGraph } from "./core/services/langgraph-capability-graph";
 import { NoopKnowledgeProvider } from "./core/services/noop-knowledge-provider";
 import { OperationalLogger } from "./core/services/operational-logger";
+import { buildLlmProvider, buildMemoryProvider } from "./core/services/provider-factory";
 
 export function buildApp() {
   const settings = loadSettings();
   const traceSink = new InMemoryTraceSink();
   const logger = new OperationalLogger(settings);
   const knowledgeProvider = new NoopKnowledgeProvider();
-  const llmProvider = new GenericLlmProvider();
+  const llmProvider = buildLlmProvider(settings);
   const dspyBridge = new HttpDspyBridge(settings.dspy);
+  const memoryProvider = buildMemoryProvider(settings);
   const outboundTransport =
     settings.channel.provider === "chatwoot" && settings.channel.replyEnabled
       ? new ChatwootTransport(settings.channel.chatwoot)
@@ -31,7 +31,7 @@ export function buildApp() {
   const orchestrator = new TurnOrchestrator({
     settings,
     stateStore: new InMemoryStateStore(),
-    memoryProvider: new InMemoryMemoryProvider(),
+    memoryProvider,
     knowledgeProvider,
     llmProvider,
     dspyBridge,

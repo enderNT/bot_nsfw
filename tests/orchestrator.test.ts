@@ -26,7 +26,21 @@ const settings: AppSettings = {
   router: { confidenceThreshold: 0.62, knowledgeThreshold: 0.58 },
   prompt: { memoryMaxItems: 3, memoryBudgetChars: 1200, recentTurnsLimit: 4, summarizeOnOverflow: true },
   state: { refreshTurnThreshold: 2, refreshCharThreshold: 900 },
-  memory: { provider: "in_memory", enabled: true, agentId: "test-agent", topK: 5, scoreThreshold: 0 },
+  memory: {
+    provider: "in_memory",
+    enabled: true,
+    agentId: "test-agent",
+    topK: 5,
+    scoreThreshold: 0,
+    infer: true,
+    customInstructionsVersion: "v1",
+    mem0: {
+      apiKey: "",
+      baseUrl: "http://127.0.0.1:8000",
+      orgId: "",
+      projectId: ""
+    }
+  },
   knowledge: { provider: "none", enabled: false, topK: 3, timeoutMs: 1000 },
   channel: {
     provider: "none",
@@ -52,7 +66,7 @@ const settings: AppSettings = {
 describe("TurnOrchestrator", () => {
   it("processes a generic conversation turn and persists continuity", async () => {
     const knowledgeProvider = new NoopKnowledgeProvider();
-    const llmProvider = new GenericLlmProvider();
+    const llmProvider = new GenericLlmProvider(settings.llm);
     const dspyBridge = new HttpDspyBridge(settings.dspy);
     const orchestrator = new TurnOrchestrator({
       settings,

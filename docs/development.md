@@ -143,7 +143,12 @@ Si además quieres que los nodos del grafo intenten usar `DSPy` antes del fallba
 
 ### MemoryProvider
 
-Sustituye `InMemoryMemoryProvider` por una implementación real si necesitas:
+El template ya puede seleccionar memoria larga por `MEMORY_PROVIDER`:
+
+- `in_memory`: implementación local en proceso
+- `mem0`: integración HTTP con `mem0` usando `MEM0_BASE_URL` y, si aplica, `MEM0_API_KEY`
+
+Si necesitas otra implementación real, sustitúyela o agrégala por factory:
 
 - persistencia entre reinicios
 - búsqueda semántica
@@ -160,11 +165,12 @@ Sustituye `NoopKnowledgeProvider` por un provider de retrieval si el producto re
 
 ### LlmProvider
 
-`GenericLlmProvider` es solo una base funcional.
+`GenericLlmProvider` ya hace llamadas reales a un endpoint `OpenAI-compatible` cuando `LLM_PROVIDER` no está en modo local/test y existe configuración suficiente (`LLM_API_KEY` o `LLM_BASE_URL`).
 
-En un producto real normalmente se reemplaza por una implementación que:
+Si no hay configuración remota, mantiene fallback heurístico para tests y desarrollo controlado.
 
-- llame a un proveedor LLM
+En un producto real normalmente todavía conviene evolucionarlo si necesitas:
+
 - use prompts versionados
 - maneje budgets y tool calling
 - incorpore identidad, tono e instrucciones configurables

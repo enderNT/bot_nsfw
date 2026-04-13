@@ -54,13 +54,14 @@ Las implementaciones incluidas son deliberadamente simples:
 
 - `InMemoryStateStore`
 - `InMemoryMemoryProvider`
+- `Mem0MemoryProvider`
 - `NoopKnowledgeProvider`
 - `InMemoryTraceSink`
 - `NoopTransport`
 - `GenericLlmProvider`
 - `HttpDspyBridge`
 
-Esto permite desarrollar y probar la arquitectura sin bloquear el arranque por dependencias externas.
+Esto permite combinar defaults locales con providers remotos sin acoplar el core a uno solo.
 
 ## Capas
 
@@ -121,6 +122,11 @@ El template separa dos niveles:
 
 - estado corto por `sessionId`
 - memoria larga por `actorId + agentId`
+
+La memoria larga se selecciona por `MEMORY_PROVIDER`:
+
+- `in_memory` para desarrollo local simple
+- `mem0` para persistencia y búsqueda semántica vía HTTP
 
 Además conserva explícitamente:
 
