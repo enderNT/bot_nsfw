@@ -17,6 +17,8 @@ const settings: AppSettings = {
     fileEnabled: false,
     directory: "./tmp-test-logs",
     fileName: "app.log",
+    maxFiles: 3,
+    maxLinesPerFile: 200,
     instanceId: "",
     containerName: "",
     containerId: "",

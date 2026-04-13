@@ -1,5 +1,5 @@
-import { appendFile, mkdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import type { AppSettings } from "../../config";
 import type { InboundMessage, RouteDecision } from "../../domain/contracts";
 
@@ -27,9 +27,20 @@ const MAX_SERIALIZED_LENGTH = 3_500;
 
 export class OperationalLogger {
   private readonly filePath: string;
+  private readonly fileDirectory: string;
+  private readonly fileBaseName: string;
+  private readonly fileExtension: string;
+  private readonly maxFiles: number;
+  private readonly maxLinesPerFile: number;
+  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly settings: AppSettings) {
     this.filePath = resolve(this.settings.logging.directory, this.settings.logging.fileName);
+    this.fileDirectory = dirname(this.filePath);
+    this.fileExtension = extname(this.filePath);
+    this.fileBaseName = basename(this.filePath, this.fileExtension);
+    this.maxFiles = Math.max(1, Math.floor(this.settings.logging.maxFiles));
+    this.maxLinesPerFile = Math.max(1, Math.floor(this.settings.logging.maxLinesPerFile));
   }
 
   async logStartup(extra: Record<string, unknown> = {}): Promise<void> {
@@ -165,9 +176,37 @@ export class OperationalLogger {
   }
 
   private async writeFileLines(lines: string[]): Promise<void> {
+    const task = this.writeQueue.then(() => this.writeFileLinesInternal(lines));
+    this.writeQueue = task.catch(() => undefined);
+    await task;
+  }
+
+  private async writeFileLinesInternal(lines: string[]): Promise<void> {
     try {
-      await mkdir(this.settings.logging.directory, { recursive: true });
-      await appendFile(this.filePath, `${lines.join("\n")}\n`, "utf8");
+      await mkdir(this.fileDirectory, { recursive: true });
+      await this.cleanupExtraLogFiles();
+
+      const normalizedLines = `${lines.join("\n")}\n`
+        .split("\n")
+        .slice(0, -1);
+
+      let remaining = normalizedLines;
+      while (remaining.length > 0) {
+        const activeFile = await this.resolveActiveLogFile();
+        const availableLines = this.maxLinesPerFile - activeFile.lineCount;
+
+        if (availableLines <= 0) {
+          const rotatedFile = this.buildLogFilePath((activeFile.index + 1) % this.maxFiles);
+          const nextChunk = remaining.slice(0, this.maxLinesPerFile);
+          await writeFile(rotatedFile, `${nextChunk.join("\n")}\n`, "utf8");
+          remaining = remaining.slice(nextChunk.length);
+          continue;
+        }
+
+        const nextChunk = remaining.slice(0, availableLines);
+        await appendFile(activeFile.path, `${nextChunk.join("\n")}\n`, "utf8");
+        remaining = remaining.slice(nextChunk.length);
+      }
     } catch (error) {
       if (this.settings.logging.consoleEnabled) {
         console.error(
@@ -175,6 +214,87 @@ export class OperationalLogger {
         );
       }
     }
+  }
+
+  private async resolveActiveLogFile(): Promise<{ index: number; path: string; lineCount: number; mtimeMs: number }> {
+    const files = await this.listManagedLogFiles();
+    if (files.length === 0) {
+      const path = this.buildLogFilePath(0);
+      await writeFile(path, "", "utf8");
+      return {
+        index: 0,
+        path,
+        lineCount: 0,
+        mtimeMs: Date.now()
+      };
+    }
+
+    return files.sort((left, right) => right.mtimeMs - left.mtimeMs || right.index - left.index)[0]!;
+  }
+
+  private async listManagedLogFiles(): Promise<Array<{ index: number; path: string; lineCount: number; mtimeMs: number }>> {
+    const entries = await readdir(this.fileDirectory, { withFileTypes: true }).catch(() => []);
+    const managedFiles = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => ({
+        name: entry.name,
+        index: this.parseManagedFileIndex(entry.name)
+      }))
+      .filter((entry): entry is { name: string; index: number } => entry.index !== null)
+      .filter((entry) => entry.index < this.maxFiles);
+
+    const result: Array<{ index: number; path: string; lineCount: number; mtimeMs: number }> = [];
+    for (const entry of managedFiles) {
+      const path = join(this.fileDirectory, entry.name);
+      const [content, metadata] = await Promise.all([
+        readFile(path, "utf8").catch(() => ""),
+        stat(path).catch(() => ({ mtimeMs: 0 }))
+      ]);
+
+      result.push({
+        index: entry.index,
+        path,
+        lineCount: countFileLines(content),
+        mtimeMs: metadata.mtimeMs
+      });
+    }
+
+    return result;
+  }
+
+  private async cleanupExtraLogFiles(): Promise<void> {
+    const entries = await readdir(this.fileDirectory, { withFileTypes: true }).catch(() => []);
+    const extraFiles = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => ({
+        name: entry.name,
+        index: this.parseManagedFileIndex(entry.name)
+      }))
+      .filter((entry): entry is { name: string; index: number } => entry.index !== null)
+      .filter((entry) => entry.index >= this.maxFiles);
+
+    await Promise.all(extraFiles.map((entry) => rm(join(this.fileDirectory, entry.name), { force: true })));
+  }
+
+  private parseManagedFileIndex(fileName: string): number | null {
+    if (fileName === `${this.fileBaseName}${this.fileExtension}`) {
+      return 0;
+    }
+
+    const match = fileName.match(new RegExp(`^${escapeRegExp(this.fileBaseName)}\\.(\\d+)${escapeRegExp(this.fileExtension)}$`));
+    if (!match) {
+      return null;
+    }
+
+    return Number(match[1]);
+  }
+
+  private buildLogFilePath(index: number): string {
+    if (index === 0) {
+      return this.filePath;
+    }
+
+    return join(this.fileDirectory, `${this.fileBaseName}.${index}${this.fileExtension}`);
   }
 }
 
@@ -462,4 +582,16 @@ function truncate(value: string, maxLength: number): string {
   }
 
   return `${value.slice(0, maxLength - 24)}...[truncated ${value.length - maxLength + 24} chars]`;
+}
+
+function countFileLines(content: string): number {
+  if (!content) {
+    return 0;
+  }
+
+  return content.endsWith("\n") ? content.split("\n").length - 1 : content.split("\n").length;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

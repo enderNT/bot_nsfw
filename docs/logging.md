@@ -38,6 +38,15 @@ El archivo es la fuente de reconstrucción completa y usa bloques como:
 
 El formato es texto plano, sin ANSI, con timestamps UTC en ISO 8601.
 
+### Retención y reciclado
+
+Los archivos de log operativos son temporales y se reciclan en forma de ring buffer.
+
+- En `development`, si no defines overrides, se conservan hasta `3` archivos con máximo `200` líneas por archivo.
+- En `production`, si no defines overrides, se conservan hasta `10` archivos con máximo `500` líneas por archivo.
+- Cuando el archivo activo llega a su límite de líneas, el logger pasa al siguiente archivo del ring y lo reescribe.
+- El objetivo es evitar crecimiento indefinido tanto en cantidad de archivos como en tamaño acumulado.
+
 ## Correlación
 
 Cada ejecución registra:
@@ -69,6 +78,8 @@ Las variables nuevas son:
 - `APP_LOG_TO_FILE`
 - `APP_LOG_DIR`
 - `APP_LOG_FILE`
+- `APP_LOG_MAX_FILES` opcional
+- `APP_LOG_MAX_LINES` opcional
 - `APP_INSTANCE_ID`
 - `APP_CONTAINER_NAME`
 - `APP_CONTAINER_ID`

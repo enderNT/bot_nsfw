@@ -13,6 +13,8 @@ export interface AppSettings {
     fileEnabled: boolean;
     directory: string;
     fileName: string;
+    maxFiles: number;
+    maxLinesPerFile: number;
     instanceId: string;
     containerName: string;
     containerId: string;
@@ -108,6 +110,7 @@ function readBoolean(name: string, fallback: boolean): boolean {
 export function loadSettings(): AppSettings {
   const mem0ApiKey = readString("MEM0_API_KEY", "");
   const mem0BaseUrlFallback = mem0ApiKey ? "https://api.mem0.ai" : "http://127.0.0.1:8000";
+  const isProduction = readString("APP_ENV", "development") === "production";
 
   return {
     app: {
@@ -124,6 +127,8 @@ export function loadSettings(): AppSettings {
       fileEnabled: readBoolean("APP_LOG_TO_FILE", true),
       directory: readString("APP_LOG_DIR", "./var/log/stateful-assistant"),
       fileName: readString("APP_LOG_FILE", "app.log"),
+      maxFiles: readNumber("APP_LOG_MAX_FILES", isProduction ? 10 : 3),
+      maxLinesPerFile: readNumber("APP_LOG_MAX_LINES", isProduction ? 500 : 200),
       instanceId: readString("APP_INSTANCE_ID", ""),
       containerName: readString("APP_CONTAINER_NAME", ""),
       containerId: readString("APP_CONTAINER_ID", ""),
