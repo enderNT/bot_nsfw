@@ -1,0 +1,54 @@
+[
+  {
+    "inbound_text": "Hola, solo queria saludarte y ver si recuerdas en que ibamos.",
+    "channel": "test",
+    "state_summary": "El usuario esta validando continuidad conversacional.",
+    "last_capability": "conversation",
+    "last_intent": "general_conversation",
+    "prompt_digest": "Usuario quiere continuidad y contexto.",
+    "capability": "conversation",
+    "intent": "general_conversation",
+    "confidence": 0.92,
+    "needs_knowledge": false,
+    "reason": "Es una continuacion conversacional y no requiere retrieval."
+  },
+  {
+    "inbound_text": "Me puedes explicar la documentacion de la API y donde autenticarme?",
+    "channel": "test",
+    "state_summary": "",
+    "last_capability": "",
+    "last_intent": "",
+    "prompt_digest": "",
+    "capability": "knowledge",
+    "intent": "knowledge_lookup",
+    "confidence": 0.95,
+    "needs_knowledge": true,
+    "reason": "Solicita informacion factual y contexto documental."
+  },
+  {
+    "inbound_text": "Programa una llamada para manana y actualiza mi reserva.",
+    "channel": "test",
+    "state_summary": "El usuario esta pidiendo ejecucion operativa.",
+    "last_capability": "action",
+    "last_intent": "workflow_progress",
+    "prompt_digest": "Hay una solicitud operativa pendiente.",
+    "capability": "action",
+    "intent": "workflow_progress",
+    "confidence": 0.94,
+    "needs_knowledge": false,
+    "reason": "La peticion implica ejecutar cambios y avanzar un flujo."
+  },
+  {
+    "inbound_text": "Sigamos con la conversacion, te decia que me llamo Gabriel.",
+    "channel": "chatwoot",
+    "state_summary": "El usuario comparte un dato personal y quiere continuidad.",
+    "last_capability": "conversation",
+    "last_intent": "general_conversation",
+    "prompt_digest": "El usuario se llama Gabriel.",
+    "capability": "conversation",
+    "intent": "general_conversation",
+    "confidence": 0.9,
+    "needs_knowledge": false,
+    "reason": "Busca continuidad, no consulta documental ni accion operativa."
+  }
+]

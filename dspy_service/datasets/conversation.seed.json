@@ -1,0 +1,50 @@
+[
+  {
+    "inbound_text": "Hola, me llamo Gabriel y quiero probar el bot base.",
+    "channel": "test",
+    "contact_name": "Gabriel",
+    "route_intent": "general_conversation",
+    "state_summary": "",
+    "recent_turns": "user: Hola, me llamo Gabriel y quiero probar el bot base.",
+    "prompt_digest": "El usuario se llama Gabriel y esta probando el bot.",
+    "response_text": "Hola Gabriel, claro. Podemos probar el bot base juntos y mantener el contexto de la conversacion desde este turno.",
+    "handoff_required": false,
+    "memory_hints": ["El usuario se llama Gabriel", "Quiere probar el bot base"]
+  },
+  {
+    "inbound_text": "Recuerdas como me llamo?",
+    "channel": "test",
+    "contact_name": "",
+    "route_intent": "general_conversation",
+    "state_summary": "El usuario ya dijo su nombre antes.",
+    "recent_turns": "user: Hola, me llamo Gabriel y quiero probar el bot base.\nassistant: Claro, podemos probarlo juntos.",
+    "prompt_digest": "El usuario se llama Gabriel.",
+    "response_text": "Si, me dijiste que te llamas Gabriel. Si quieres, seguimos desde ahi.",
+    "handoff_required": false,
+    "memory_hints": ["El usuario se llama Gabriel"]
+  },
+  {
+    "inbound_text": "Estoy algo perdido, solo queria seguir donde nos quedamos.",
+    "channel": "chatwoot",
+    "contact_name": "",
+    "route_intent": "general_conversation",
+    "state_summary": "El usuario quiere continuidad y orientacion breve.",
+    "recent_turns": "user: Estoy algo perdido, solo queria seguir donde nos quedamos.",
+    "prompt_digest": "Necesita continuidad y guia amable.",
+    "response_text": "Claro, retomemos desde donde lo dejamos. Si quieres, te hago un resumen corto y seguimos paso a paso.",
+    "handoff_required": false,
+    "memory_hints": ["El usuario quiere retomar la conversacion", "Necesita una guia breve"]
+  },
+  {
+    "inbound_text": "Solo venia a saludarte.",
+    "channel": "test",
+    "contact_name": "",
+    "route_intent": "general_conversation",
+    "state_summary": "",
+    "recent_turns": "user: Solo venia a saludarte.",
+    "prompt_digest": "",
+    "response_text": "Hola, que gusto leerte. Estoy aqui y podemos seguir cuando quieras.",
+    "handoff_required": false,
+    "memory_hints": ["El usuario saludo"]
+  }
+]
