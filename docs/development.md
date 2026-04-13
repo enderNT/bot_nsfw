@@ -68,6 +68,15 @@ Ver el archivo persistido:
 docker compose exec app sh -lc 'tail -n 200 /var/log/stateful-assistant/app.log'
 ```
 
+Configurar Chatwoot en local:
+
+```bash
+CHANNEL_PROVIDER=chatwoot
+CHANNEL_REPLY_ENABLED=true
+CHATWOOT_BASE_URL=https://tu-chatwoot.example.com
+CHATWOOT_API_ACCESS_TOKEN=tu_token
+```
+
 ## Formas de uso
 
 ### 1. Webhook asíncrono
@@ -75,6 +84,8 @@ docker compose exec app sh -lc 'tail -n 200 /var/log/stateful-assistant/app.log'
 `POST /webhooks/messages`
 
 Pensado para canales externos que necesitan acuse temprano.
+
+Con Chatwoot, este endpoint filtra automáticamente mensajes salientes o privados para evitar loops.
 
 Ejemplo:
 

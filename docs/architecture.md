@@ -71,11 +71,24 @@ La API vive en `src/app.ts` con `Elysia`.
 - `POST /webhooks/messages` responde rápido con `202` y procesa en segundo plano.
 - `POST /turns/execute` es útil para pruebas síncronas.
 - `GET /health` y `GET /debug/traces` cubren operación y debugging.
+- `POST /webhooks/messages` también discrimina eventos de Chatwoot para procesar solo mensajes entrantes.
 
 ### Inbound / Outbound Adapters
 
 - `src/adapters/http/inbound.ts` transforma payloads externos a `InboundMessage`.
-- `src/adapters/channels/noop-transport.ts` muestra el punto de extensión para emitir respuestas.
+- `src/adapters/channels/noop-transport.ts` muestra el fallback cuando no hay canal real.
+- `src/adapters/channels/chatwoot-transport.ts` envía respuestas al endpoint oficial de mensajes de Chatwoot.
+
+### Chatwoot
+
+La integración actual con Chatwoot cubre:
+
+- recepción por webhook en el endpoint principal
+- normalización de payload tipo `message_created`
+- filtro de seguridad para ignorar mensajes `outgoing`, privados o no originados por contacto
+- envío de respuestas por `POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages`
+
+El filtro de entrada existe para evitar que los mensajes emitidos por la app regresen al webhook y ciclen el sistema.
 
 ### Core Orchestrator
 

@@ -10,6 +10,13 @@ export interface InboundMessage {
   trigger?: string;
   accountId?: string;
   contactName?: string;
+  deliveryContext?: {
+    provider: string;
+    accountId?: string;
+    conversationId?: string;
+    inboxId?: string;
+    contactId?: string;
+  };
   rawPayload: unknown;
   receivedAt: string;
 }

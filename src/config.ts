@@ -56,6 +56,10 @@ export interface AppSettings {
   channel: {
     provider: string;
     replyEnabled: boolean;
+    chatwoot: {
+      baseUrl: string;
+      apiAccessToken?: string;
+    };
   };
   trace: {
     backend: string;
@@ -154,7 +158,11 @@ export function loadSettings(): AppSettings {
     },
     channel: {
       provider: readString("CHANNEL_PROVIDER", "none"),
-      replyEnabled: readBoolean("CHANNEL_REPLY_ENABLED", false)
+      replyEnabled: readBoolean("CHANNEL_REPLY_ENABLED", false),
+      chatwoot: {
+        baseUrl: readString("CHATWOOT_BASE_URL", ""),
+        apiAccessToken: readString("CHATWOOT_API_ACCESS_TOKEN", "")
+      }
     },
     trace: {
       backend: readString("TRACE_BACKEND", "in_memory"),

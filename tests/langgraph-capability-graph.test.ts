@@ -24,7 +24,14 @@ const settings: AppSettings = {
   state: { refreshTurnThreshold: 2, refreshCharThreshold: 900 },
   memory: { provider: "in_memory", enabled: true, agentId: "test-agent", topK: 5, scoreThreshold: 0 },
   knowledge: { provider: "none", enabled: false, topK: 3, timeoutMs: 1000 },
-  channel: { provider: "none", replyEnabled: false },
+  channel: {
+    provider: "none",
+    replyEnabled: false,
+    chatwoot: {
+      baseUrl: "",
+      apiAccessToken: ""
+    }
+  },
   trace: { backend: "in_memory", appKey: "test", projectorsEnabled: true, storeRawRecall: true, storePromptDigest: true },
   dspy: {
     enabled: false,

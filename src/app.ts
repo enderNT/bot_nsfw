@@ -1,7 +1,12 @@
 import { Elysia } from "elysia";
 import { loadSettings } from "./config";
+import { ChatwootTransport } from "./adapters/channels/chatwoot-transport";
 import { NoopTransport } from "./adapters/channels/noop-transport";
-import { normalizeInboundMessage } from "./adapters/http/inbound";
+import {
+  assessChatwootWebhook,
+  normalizeChatwootInboundMessage,
+  normalizeInboundMessage
+} from "./adapters/http/inbound";
 import { TurnOrchestrator } from "./core/orchestrator";
 import { GenericLlmProvider } from "./core/services/generic-llm-provider";
 import { HttpDspyBridge } from "./core/services/http-dspy-bridge";
@@ -19,6 +24,10 @@ export function buildApp() {
   const knowledgeProvider = new NoopKnowledgeProvider();
   const llmProvider = new GenericLlmProvider();
   const dspyBridge = new HttpDspyBridge(settings.dspy);
+  const outboundTransport =
+    settings.channel.provider === "chatwoot" && settings.channel.replyEnabled
+      ? new ChatwootTransport(settings.channel.chatwoot)
+      : new NoopTransport();
   const orchestrator = new TurnOrchestrator({
     settings,
     stateStore: new InMemoryStateStore(),
@@ -27,7 +36,7 @@ export function buildApp() {
     llmProvider,
     dspyBridge,
     traceSink,
-    outboundTransport: new NoopTransport(),
+    outboundTransport,
     logger,
     langGraph: new LangGraphCapabilityGraph({
       settings,
@@ -46,7 +55,20 @@ export function buildApp() {
     }))
     .post("/webhooks/messages", async ({ body, set }) => {
       try {
-        const inbound = normalizeInboundMessage(body as Record<string, unknown>);
+        const payload = body as Record<string, unknown>;
+        const assessment = assessChatwootWebhook(payload);
+        if (!assessment.shouldProcess) {
+          set.status = 202;
+          return {
+            accepted: true,
+            mode: "ignored",
+            reason: assessment.reason ?? "ignored_event"
+          };
+        }
+
+        const inbound = assessment.isChatwoot
+          ? normalizeChatwootInboundMessage(payload)
+          : normalizeInboundMessage(payload);
         void orchestrator.processTurn(inbound).catch((error) => {
           void logger.logSystemError("async_turn", "http.webhooks.messages", error, {
             session_id: inbound.sessionId,

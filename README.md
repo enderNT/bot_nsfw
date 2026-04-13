@@ -52,6 +52,12 @@ Documentación ampliada:
 - `POST /turns/execute`: ejecuta el turno de forma síncrona; útil para pruebas locales e integración.
 - `GET /debug/traces`: expone las trazas guardadas en el sink en memoria.
 
+Con `Chatwoot`, el webhook principal ya puede:
+
+- aceptar mensajes entrantes reales
+- ignorar salientes/privados para evitar loops
+- responder por la API oficial de conversaciones si `CHANNEL_PROVIDER=chatwoot`
+
 ## Ejemplo de payload
 
 ```json
@@ -75,6 +81,7 @@ La configuración está centralizada en [`.env.example`](./.env.example) y separ
 - `TRACE_*`
 - `DSPY_*`
 - `CHANNEL_*`
+- `CHATWOOT_*`
 - `DOCKER_*`
 
 Regla de diseño:
