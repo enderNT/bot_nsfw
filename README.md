@@ -109,6 +109,18 @@ bun x tsc --noEmit
 bun run src/index.ts
 ```
 
+Para levantar solo el servicio Python de `DSPy` en local:
+
+```bash
+make dspy
+```
+
+Para publicar tu app local con `ngrok`:
+
+```bash
+bun run ngrok
+```
+
 ## Extensión
 
 Para convertir este template en un producto concreto, normalmente basta con reemplazar o agregar estas piezas:

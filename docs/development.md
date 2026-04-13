@@ -38,6 +38,18 @@ Levantar app principal:
 bun run src/index.ts
 ```
 
+Levantar solo el servicio local de `DSPy`:
+
+```bash
+make dspy
+```
+
+Exponer la app local con `ngrok`:
+
+```bash
+bun run ngrok
+```
+
 Levantar stack completo:
 
 ```bash
