@@ -88,59 +88,49 @@ export class Mem0MemoryProvider implements MemoryProvider {
     sessionId: string,
     metadata: Record<string, unknown>
   ): Promise<AddMemoryResult> {
-    try {
-      const payload = {
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.text
-        })),
-        user_id: actorId,
-        agent_id: agentId,
-        run_id: sessionId,
-        infer: this.settings.infer,
-        metadata: {
-          ...metadata,
-          sessionId,
-          customInstructionsVersion: this.settings.customInstructionsVersion
-        },
-        ...(this.platformMode
-          ? {
-              org_id: this.settings.mem0.orgId || undefined,
-              project_id: this.settings.mem0.projectId || undefined
-            }
-          : {})
-      };
+    const payload = {
+      messages: messages.map((message) => ({
+        role: message.role,
+        content: message.text
+      })),
+      user_id: actorId,
+      agent_id: agentId,
+      run_id: sessionId,
+      infer: this.settings.infer,
+      metadata: {
+        ...metadata,
+        sessionId,
+        customInstructionsVersion: this.settings.customInstructionsVersion
+      },
+      ...(this.platformMode
+        ? {
+            org_id: this.settings.mem0.orgId || undefined,
+            project_id: this.settings.mem0.projectId || undefined
+          }
+        : {})
+    };
 
-      const response = await fetch(this.resolveUrl("add"), {
-        method: "POST",
-        headers: this.headers,
-        body: JSON.stringify(payload)
-      });
+    const response = await fetch(this.resolveUrl("add"), {
+      method: "POST",
+      headers: this.headers,
+      body: JSON.stringify(payload)
+    });
 
-      if (!response.ok) {
-        throw new Error(`Mem0 add failed: ${response.status} ${await response.text()}`);
-      }
-
-      const responsePayload = (await response.json()) as unknown;
-      const events = Array.isArray(responsePayload)
-        ? responsePayload.filter(isRecord)
-        : isRecord(responsePayload) && Array.isArray(responsePayload.results)
-          ? responsePayload.results.filter(isRecord)
-          : [];
-
-      return {
-        stored: events.length > 0,
-        count: events.length
-      };
-    } catch (error) {
-      console.error(
-        `[mem0] addTurn fallback: ${error instanceof Error ? error.message : "unknown_error"}`
-      );
-      return {
-        stored: false,
-        count: 0
-      };
+    if (!response.ok) {
+      throw new Error(`Mem0 add failed: ${response.status} ${await response.text()}`);
     }
+
+    const responsePayload = (await response.json()) as unknown;
+    const events = Array.isArray(responsePayload)
+      ? responsePayload.filter(isRecord)
+      : isRecord(responsePayload) && Array.isArray(responsePayload.results)
+        ? responsePayload.results.filter(isRecord)
+        : [];
+
+    return {
+      stored: events.length > 0,
+      count: events.length
+    };
   }
 
   async search(
@@ -150,54 +140,47 @@ export class Mem0MemoryProvider implements MemoryProvider {
     topK: number,
     threshold: number
   ): Promise<MemoryHit[]> {
-    try {
-      const body = this.platformMode
-        ? {
-            query,
-            version: "v2",
-            top_k: topK,
-            threshold,
-            filters: {
-              AND: [{ user_id: actorId }, { agent_id: agentId }]
-            },
-            ...(this.settings.mem0.orgId ? { org_id: this.settings.mem0.orgId } : {}),
-            ...(this.settings.mem0.projectId ? { project_id: this.settings.mem0.projectId } : {})
-          }
-        : {
-            query,
-            user_id: actorId,
-            agent_id: agentId,
-            top_k: topK
-          };
+    const body = this.platformMode
+      ? {
+          query,
+          version: "v2",
+          top_k: topK,
+          threshold,
+          filters: {
+            AND: [{ user_id: actorId }, { agent_id: agentId }]
+          },
+          ...(this.settings.mem0.orgId ? { org_id: this.settings.mem0.orgId } : {}),
+          ...(this.settings.mem0.projectId ? { project_id: this.settings.mem0.projectId } : {})
+        }
+      : {
+          query,
+          user_id: actorId,
+          agent_id: agentId,
+          top_k: topK
+        };
 
-      const response = await fetch(this.resolveUrl("search"), {
-        method: "POST",
-        headers: this.headers,
-        body: JSON.stringify(body)
-      });
+    const response = await fetch(this.resolveUrl("search"), {
+      method: "POST",
+      headers: this.headers,
+      body: JSON.stringify(body)
+    });
 
-      if (!response.ok) {
-        throw new Error(`Mem0 search failed: ${response.status} ${await response.text()}`);
-      }
-
-      const payload = (await response.json()) as unknown;
-      return toSearchResults(payload)
-        .map((memory) => ({
-          id: String(memory.id ?? crypto.randomUUID()),
-          memory: String(memory.memory ?? memory.data?.memory ?? ""),
-          score: Number.isFinite(memory.score) ? Number(memory.score) : 0,
-          metadata: isRecord(memory.metadata) ? memory.metadata : {},
-          createdAt: String(memory.created_at ?? new Date().toISOString()),
-          updatedAt: String(memory.updated_at ?? memory.created_at ?? new Date().toISOString())
-        }))
-        .filter((memory) => memory.memory.length > 0 && memory.score >= threshold)
-        .slice(0, topK);
-    } catch (error) {
-      console.error(
-        `[mem0] search fallback: ${error instanceof Error ? error.message : "unknown_error"}`
-      );
-      return [];
+    if (!response.ok) {
+      throw new Error(`Mem0 search failed: ${response.status} ${await response.text()}`);
     }
+
+    const payload = (await response.json()) as unknown;
+    return toSearchResults(payload)
+      .map((memory) => ({
+        id: String(memory.id ?? crypto.randomUUID()),
+        memory: String(memory.memory ?? memory.data?.memory ?? ""),
+        score: Number.isFinite(memory.score) ? Number(memory.score) : 0,
+        metadata: isRecord(memory.metadata) ? memory.metadata : {},
+        createdAt: String(memory.created_at ?? new Date().toISOString()),
+        updatedAt: String(memory.updated_at ?? memory.created_at ?? new Date().toISOString())
+      }))
+      .filter((memory) => memory.memory.length > 0 && memory.score >= threshold)
+      .slice(0, topK);
   }
 
   private resolveUrl(operation: "add" | "search"): string {

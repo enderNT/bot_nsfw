@@ -100,4 +100,41 @@ describe("OperationalLogger rotation", () => {
     const latestContent = await readFile(join(directory, "app.log"), "utf8");
     expect(latestContent).toContain("boot: 3");
   });
+
+  it("writes memory read and write blocks to the operational log file", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "bot-nsfw-memory-logs-"));
+    tempDirs.push(directory);
+
+    const logger = new OperationalLogger(buildSettings(directory, { maxFiles: 3, maxLinesPerFile: 50 }));
+    const execution = await logger.startRun({
+      sessionId: "session-1",
+      actorId: "user-1",
+      channel: "test",
+      text: "hola",
+      rawPayload: {},
+      receivedAt: "2026-04-13T00:00:00.000Z"
+    });
+
+    await execution.memoryRead("short_term_state", {
+      scope: "short_term",
+      component: "state_store",
+      request: { sessionId: "session-1" },
+      response: { turnCount: 1, summaryPreview: "Resumen corto" },
+      status: "ok"
+    });
+    await execution.memoryWrite("long_term_memory", {
+      scope: "long_term",
+      component: "in_memory",
+      request: { sessionId: "session-1" },
+      response: { stored: true, count: 1 },
+      status: "ok"
+    });
+    await execution.end({ status: "ok", summary: "test", result: "completed" });
+
+    const content = await readFile(join(directory, "app.log"), "utf8");
+    expect(content).toContain("[02.MEMORY.READ.short_term_state]");
+    expect(content).toContain("[07.MEMORY.WRITE.long_term_memory]");
+    expect(content).toContain("\"scope\": \"short_term\"");
+    expect(content).toContain("\"scope\": \"long_term\"");
+  });
 });

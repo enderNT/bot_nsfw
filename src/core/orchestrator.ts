@@ -3,6 +3,7 @@ import type {
   CapabilityResult,
   ExecutionContext,
   InboundMessage,
+  MemoryHit,
   RouteDecision,
   ShortTermState,
   TurnOutcome
@@ -46,22 +47,93 @@ export class TurnOrchestrator {
     try {
       await this.deps.traceSink.append(traceId, "ingest", inbound);
 
-      let state = await this.deps.stateStore.load(inbound.sessionId);
+      let state: ShortTermState;
+      try {
+        state = await this.deps.stateStore.load(inbound.sessionId);
+        await executionLogger.memoryRead("short_term_state", {
+          scope: "short_term",
+          component: "state_store",
+          request: {
+            sessionId: inbound.sessionId
+          },
+          response: {
+            turnCount: state.turnCount,
+            summaryPreview: state.summary,
+            stage: state.stage ?? NO_VALUE,
+            lastCapability: state.lastCapability ?? NO_VALUE,
+            lastIntent: state.lastIntent ?? NO_VALUE,
+            continuitySignalsCount: state.continuitySignals.length
+          },
+          status: "ok"
+        });
+      } catch (error) {
+        await executionLogger.memoryRead("short_term_state", {
+          scope: "short_term",
+          component: "state_store",
+          request: {
+            sessionId: inbound.sessionId
+          },
+          status: "error",
+          error
+        });
+        throw error;
+      }
+
       state = appendTurn(
         state,
         { role: "user", text: inbound.text, timestamp: inbound.receivedAt },
         this.deps.settings.prompt.recentTurnsLimit
       );
 
-      const recalledMemories = this.deps.settings.memory.enabled
-        ? await this.deps.memoryProvider.search(
+      let recalledMemories: MemoryHit[] = [];
+      if (this.deps.settings.memory.enabled) {
+        try {
+          recalledMemories = await this.deps.memoryProvider.search(
             inbound.text,
             inbound.actorId,
             this.deps.settings.memory.agentId,
             this.deps.settings.memory.topK,
             this.deps.settings.memory.scoreThreshold
-          )
-        : [];
+          );
+          await executionLogger.memoryRead("long_term_memory", {
+            scope: "long_term",
+            component: this.deps.settings.memory.provider,
+            request: {
+              query: inbound.text,
+              actorId: inbound.actorId,
+              agentId: this.deps.settings.memory.agentId,
+              topK: this.deps.settings.memory.topK,
+              scoreThreshold: this.deps.settings.memory.scoreThreshold
+            },
+            response: {
+              count: recalledMemories.length,
+              promptDigest: recalledMemories.map((memory) => memory.memory).join(" | "),
+              items: recalledMemories.map((memory) => ({
+                id: memory.id,
+                score: memory.score,
+                memory: memory.memory,
+                metadata: memory.metadata
+              }))
+            },
+            status: "ok"
+          });
+        } catch (error) {
+          await executionLogger.memoryRead("long_term_memory", {
+            scope: "long_term",
+            component: this.deps.settings.memory.provider,
+            request: {
+              query: inbound.text,
+              actorId: inbound.actorId,
+              agentId: this.deps.settings.memory.agentId,
+              topK: this.deps.settings.memory.topK,
+              scoreThreshold: this.deps.settings.memory.scoreThreshold
+            },
+            status: "error",
+            error
+          });
+          recalledMemories = [];
+        }
+      }
       const memorySelection = await buildPromptMemorySelection(
         inbound.text,
         recalledMemories,
@@ -138,7 +210,7 @@ export class TurnOrchestrator {
         }
       };
 
-      await this.persist(inbound, updatedState, result);
+      await this.persist(inbound, updatedState, result, executionLogger);
       await this.deps.traceSink.projectReply(traceId, outcome, inbound);
       await this.deps.traceSink.endTurn(traceId, outcome);
       const outbound = await this.deps.outboundTransport.emit(outcome, inbound);
@@ -369,26 +441,96 @@ export class TurnOrchestrator {
     };
   }
 
-  private async persist(inbound: InboundMessage, state: ShortTermState, result: CapabilityResult): Promise<void> {
-    await this.deps.stateStore.save(inbound.sessionId, state);
+  private async persist(
+    inbound: InboundMessage,
+    state: ShortTermState,
+    result: CapabilityResult,
+    executionLogger: ExecutionLogger
+  ): Promise<void> {
+    try {
+      await this.deps.stateStore.save(inbound.sessionId, state);
+      await executionLogger.memoryWrite("short_term_state", {
+        scope: "short_term",
+        component: "state_store",
+        request: {
+          sessionId: inbound.sessionId,
+          capability: state.lastCapability ?? NO_VALUE,
+          lastIntent: state.lastIntent ?? NO_VALUE
+        },
+        response: {
+          turnCount: state.turnCount,
+          summaryPreview: state.summary,
+          stage: state.stage ?? NO_VALUE,
+          continuitySignalsCount: state.continuitySignals.length
+        },
+        status: "ok"
+      });
+    } catch (error) {
+      await executionLogger.memoryWrite("short_term_state", {
+        scope: "short_term",
+        component: "state_store",
+        request: {
+          sessionId: inbound.sessionId
+        },
+        status: "error",
+        error
+      });
+      throw error;
+    }
 
     if (!this.deps.settings.memory.enabled) {
       return;
     }
 
-    await this.deps.memoryProvider.addTurn(
-      [
-        { role: "user", text: inbound.text, timestamp: inbound.receivedAt },
-        { role: "assistant", text: result.responseText, timestamp: new Date().toISOString() }
-      ],
-      inbound.actorId,
-      this.deps.settings.memory.agentId,
-      inbound.sessionId,
-      {
-        channel: inbound.channel,
-        capability: state.lastCapability,
-        lastIntent: state.lastIntent
-      }
-    );
+    const messages = [
+      { role: "user" as const, text: inbound.text, timestamp: inbound.receivedAt },
+      { role: "assistant" as const, text: result.responseText, timestamp: new Date().toISOString() }
+    ];
+    const metadata = {
+      channel: inbound.channel,
+      capability: state.lastCapability,
+      lastIntent: state.lastIntent
+    };
+
+    try {
+      const addResult = await this.deps.memoryProvider.addTurn(
+        messages,
+        inbound.actorId,
+        this.deps.settings.memory.agentId,
+        inbound.sessionId,
+        metadata
+      );
+      await executionLogger.memoryWrite("long_term_memory", {
+        scope: "long_term",
+        component: this.deps.settings.memory.provider,
+        request: {
+          actorId: inbound.actorId,
+          agentId: this.deps.settings.memory.agentId,
+          sessionId: inbound.sessionId,
+          messages,
+          metadata
+        },
+        response: {
+          stored: addResult.stored,
+          count: addResult.count,
+          memoryHints: result.memoryHints
+        },
+        status: addResult.stored ? "ok" : "noop"
+      });
+    } catch (error) {
+      await executionLogger.memoryWrite("long_term_memory", {
+        scope: "long_term",
+        component: this.deps.settings.memory.provider,
+        request: {
+          actorId: inbound.actorId,
+          agentId: this.deps.settings.memory.agentId,
+          sessionId: inbound.sessionId,
+          messages,
+          metadata
+        },
+        status: "error",
+        error
+      });
+    }
   }
 }

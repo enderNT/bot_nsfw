@@ -3,7 +3,7 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import type { AppSettings } from "../../config";
 import type { InboundMessage, RouteDecision } from "../../domain/contracts";
 
-type TerminalPhase = "IN" | "ROUTE" | "FLOW" | "OUT" | "END";
+type TerminalPhase = "IN" | "MEM" | "ROUTE" | "FLOW" | "OUT" | "END";
 
 interface LogError {
   owner: string;
@@ -379,6 +379,56 @@ export class ExecutionLogger {
     await this.block("02.CONTEXT", data);
   }
 
+  async memoryRead(name: string, data: {
+    scope: "short_term" | "long_term";
+    component: string;
+    request?: Record<string, unknown>;
+    response?: Record<string, unknown>;
+    status: string;
+    error?: unknown;
+  }): Promise<void> {
+    const capturedError = data.error ? toLogError("memory_read", data.component, data.error, "memory_read_failed") : undefined;
+    this.parent.writeConsoleLine(
+      "MEM",
+      capturedError ? formatMemoryErrorSummary(data.scope, "read", capturedError) : formatMemoryReadSummary(data.scope, data.component, data.response),
+      Boolean(capturedError)
+    );
+
+    await this.block(`02.MEMORY.READ.${name}`, {
+      scope: data.scope,
+      component: data.component,
+      request: data.request ?? NO_VALUE,
+      response: data.response ?? NO_VALUE,
+      status: data.status,
+      error: capturedError ?? NO_VALUE
+    });
+  }
+
+  async memoryWrite(name: string, data: {
+    scope: "short_term" | "long_term";
+    component: string;
+    request?: Record<string, unknown>;
+    response?: Record<string, unknown>;
+    status: string;
+    error?: unknown;
+  }): Promise<void> {
+    const capturedError = data.error ? toLogError("memory_write", data.component, data.error, "memory_write_failed") : undefined;
+    this.parent.writeConsoleLine(
+      "MEM",
+      capturedError ? formatMemoryErrorSummary(data.scope, "write", capturedError) : formatMemoryWriteSummary(data.scope, data.component, data.response),
+      Boolean(capturedError)
+    );
+
+    await this.block(`07.MEMORY.WRITE.${name}`, {
+      scope: data.scope,
+      component: data.component,
+      request: data.request ?? NO_VALUE,
+      response: data.response ?? NO_VALUE,
+      status: data.status,
+      error: capturedError ?? NO_VALUE
+    });
+  }
+
   async route(data: {
     resolver: string;
     input: Record<string, unknown>;
@@ -496,6 +546,54 @@ function extractConsoleResult(result: unknown): string {
 
   const candidate = (result as Record<string, unknown>).responseText;
   return typeof candidate === "string" ? candidate : JSON.stringify(sanitizeForLog(result));
+}
+
+function formatMemoryReadSummary(
+  scope: "short_term" | "long_term",
+  component: string,
+  response?: Record<string, unknown>
+): string {
+  if (scope === "short_term") {
+    const turnCount = formatConsoleScalar(response?.turnCount);
+    const summary = truncate(String(response?.summaryPreview ?? ""), 60);
+    return `${scope} read ${component} turns=${turnCount} summary="${summary || NO_VALUE}"`;
+  }
+
+  const count = formatConsoleScalar(response?.count);
+  const promptDigest = truncate(String(response?.promptDigest ?? ""), 60);
+  return `${scope} read ${component} count=${count} digest="${promptDigest || NO_VALUE}"`;
+}
+
+function formatMemoryWriteSummary(
+  scope: "short_term" | "long_term",
+  component: string,
+  response?: Record<string, unknown>
+): string {
+  if (scope === "short_term") {
+    const turnCount = formatConsoleScalar(response?.turnCount);
+    const stage = formatConsoleScalar(response?.stage);
+    return `${scope} write ${component} turns=${turnCount} stage=${stage}`;
+  }
+
+  const stored = formatConsoleScalar(response?.stored);
+  const count = formatConsoleScalar(response?.count);
+  return `${scope} write ${component} stored=${stored} count=${count}`;
+}
+
+function formatMemoryErrorSummary(
+  scope: "short_term" | "long_term",
+  operation: "read" | "write",
+  error: LogError
+): string {
+  return `${scope} ${operation} ${error.owner} ${error.type}: ${error.detail}`;
+}
+
+function formatConsoleScalar(value: unknown): string {
+  if (value == null || value === "") {
+    return NO_VALUE;
+  }
+
+  return truncate(String(value), 60);
 }
 
 function sanitizeForLog(value: unknown, depth = 0): unknown {

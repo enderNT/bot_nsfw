@@ -16,6 +16,7 @@ Los cambios de esta implementación afectan únicamente al logging operativo.
 La terminal muestra una vista corta por ejecución:
 
 - `IN`
+- `MEM`
 - `ROUTE`
 - `FLOW`
 - `OUT`
@@ -28,11 +29,13 @@ Cada ejecución abre y cierra con separadores coloreados. El rojo queda reservad
 El archivo es la fuente de reconstrucción completa y usa bloques como:
 
 - `[01.INPUT]`
+- `[02.MEMORY.READ.<name>]`
 - `[02.CONTEXT]`
 - `[03.ROUTE]`
 - `[04.TOOL.<name>]`
 - `[05.MODEL.<name>]`
 - `[06.FLOW]`
+- `[07.MEMORY.WRITE.<name>]`
 - `[07.OUTPUT]`
 - `[08.END]`
 
@@ -98,6 +101,8 @@ Eso permite que el archivo oficial de logs sobreviva reinicios o recreaciones de
 La implementación registra:
 
 - entrada normalizada
+- lectura y escritura de memoria corta
+- lectura y escritura de memoria larga cuando aplica
 - contexto resumido y memoria recuperada
 - decisión de routing
 - llamadas al bridge DSPy cuando aplican
